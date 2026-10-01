@@ -1,0 +1,19 @@
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.0.0
+  vite-plus: 1.0.0
+minimumReleaseAgeExclude:
+  - "@opencode/ai@2.0.21"
+  - "@opencode/client@2.0.21"
+  - "@opencode/plugin@2.0.21"
+  - "@opencode/protocol@2.0.21"
+  - "@opencode/schema@2.0.21"
+  - "@opencode/util@2.0.21"
+overrides:
+  vite@*: "catalog:"
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"
+ignoredBuiltDependencies:
+  - msgpackr-extract
