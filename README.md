@@ -87,6 +87,41 @@ The plugin also contributes a `todo-discipline` skill. Its description sits in
 every system prompt, and it mandates a phased `init` before multi-step work and
 marking each task done as it finishes rather than batching at the end.
 
+## Sidebar
+
+The todo list renders live in the session sidebar. The sidebar is part of the
+TUI, so it needs a TUI plugin entrypoint rather than the server plugin that
+provides the tool:
+
+```
+~/.config/opencode/cli.json
+{
+  "plugins": ["@kevin/opencode-todo"]
+}
+```
+
+The list appears when the terminal is wide enough, because `session.sidebar`
+defaults to `"auto"` and only opens above 120 columns. Set it to `"auto"` or
+`"show"` in `cli.json` to control that.
+
+Rows lead with the overall count, then each phase with its own done count, then
+that phase's open tasks. A phase with more tasks than fit collapses to the most
+relevant ones and a `… N more` line, the same walking viewport the pi extension's
+HUD used.
+
+```
+1/3 done
+Foundation 1/2
+✓ scaffold crate
+○ wire workspace
+Auth 0/1
+○ port credential store
+```
+
+The view reads the todo state the tool already reports, so nothing extra is
+persisted and there is no side channel. It updates on each `todo` tool result,
+with a slow poll as a backstop for a list edited through `/todo`.
+
 ## Install
 
 From a checkout:
@@ -140,6 +175,7 @@ ctx.skill.transform    → todo-discipline
 ctx.session.hook       → reads history, feeds the reminder tracker
 ctx.session.synthetic  → injects a reminder and starts a turn
 ctx.storage            → the persisted phase list
+ctx.ui.slot (TUI)      → the sidebar view
 ```
 
 `src/` splits into a host-free core and thin v2 adapters:
@@ -151,6 +187,7 @@ src/
   state.ts          pure reducers: every op, normalization, op inference
   execute.ts        one op against the phase list, with batch atomicity
   format.ts         the summary the model reads
+  hud.ts            the sidebar view model (rows, counts, truncation)
   markdown.ts       Markdown round-trip for export, import, and edit
   persistence.ts    one storage key per session
   config.ts         file, environment, and option precedence
@@ -159,20 +196,24 @@ src/
   command.ts        the /todo verbs
   skill.ts          loads the bundled skill
   index.ts          wiring only
+  tui.tsx           the sidebar slot adapter
 ```
 
 The pure modules carry no OpenCode import. They are testable alone, and the
-ported test suite exercises them directly.
+ported test suite exercises them directly. `tui.tsx` is the one exception and
+stays a thin shell over `hud.ts`, so the view logic is unit tested rather than
+eyeballed in a terminal.
 
 ## Develop
 
 ```bash
 vp install
-vp test run        # 147 unit tests
+vp test run        # 165 unit tests
 npx tsc --noEmit   # typecheck
 vp check           # format and lint
 vp pack            # build dist/
 node scripts/smoke.mjs
+node scripts/sidebar-check.mjs
 ```
 
 `scripts/smoke.mjs` drives two real `opencode` processes in a sandbox directory,
@@ -185,12 +226,19 @@ The transcript is the evidence rather than the model's reply, because a model
 will sometimes report "there is no todo tool" while the tool result sits in the
 transcript.
 
+`scripts/sidebar-check.mjs` proves the sidebar render. It boots one
+`opencode serve`, attaches both a CLI and a TUI to it, drives a real todo list,
+and asserts against the painted terminal log, because the sidebar is drawn by
+the TUI and never appears in the transcript. Add `--boot` to skip the model
+calls. Two processes with `--standalone` would each get a private server, so no
+event could cross between them; one shared server is what makes the check real.
+
 ## Differences from the pi extension
 
 | pi extension                                              | This plugin                                       |
 | --------------------------------------------------------- | ------------------------------------------------- |
 | Session branch replay for persistence                     | `ctx.storage`, one key per session                |
-| Custom TUI rendering (roman numerals, collapsed viewport) | Plain text; v2 exposes no plugin tool renderer    |
+| Custom TUI rendering (roman numerals, collapsed viewport) | The session sidebar; no roman numerals            |
 | Desktop notifications over the pi EventBus                | Dropped; v2 has no plugin-facing notification bus |
 | `--todo-*` CLI flags                                      | Environment variables and plugin `options`        |
 | `$EDITOR` fallback outside the TUI                        | `$EDITOR` only; v2 has no plugin editor dialog    |

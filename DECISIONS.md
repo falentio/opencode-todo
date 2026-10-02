@@ -60,16 +60,60 @@ reading docs.
 
 ## Verification
 
-| Gate            | Command                  | Result                             |
-| --------------- | ------------------------ | ---------------------------------- |
-| Unit tests      | `vp test run`            | 147 passed                         |
-| Typecheck       | `npx tsc --noEmit`       | clean                              |
-| Format and lint | `vp check`               | 0 errors, 0 warnings               |
-| Build           | `vp pack`                | `dist/index.mjs`, 67 kB            |
-| End to end      | `node scripts/smoke.mjs` | 11/11 checks, stable across 3 runs |
+| Gate            | Command                          | Result                                       |
+| --------------- | -------------------------------- | -------------------------------------------- |
+| Unit tests      | `vp test run`                    | 165 passed                                   |
+| Typecheck       | `npx tsc --noEmit`               | clean                                        |
+| Format and lint | `vp check`                       | 0 errors, 0 warnings                         |
+| Build           | `vp pack`                        | `dist/index.mjs`, 67 kB                      |
+| End to end      | `node scripts/smoke.mjs`         | 11/11 checks, stable across 3 runs           |
+| Sidebar         | `node scripts/sidebar-check.mjs` | 4/4 checks, sidebar painted and updated live |
 
 The smoke test's checks: the CLI responds, the tool is in the model's catalog,
 `init` ran and completed, the summary listed both tasks, the metadata carried
 the phases, a second process read the list back with `view`, the reminder fired,
 `/todo` registered, the skill registered, the plugin loaded without error, and
 the tool reported no argument error.
+
+## Sidebar
+
+The todo list renders in the TUI session sidebar. The port's original
+DECISIONS row 4 dropped the pi renderer because "v2 tool results are plain text
+and expose no plugin renderer" — that was true of the tool surface, and false of
+the TUI. `@opencode/plugin/tui` publishes `ui.slot`, and the host's `SlotMap`
+declares `sidebar.content`.
+
+Every claim below came from running opencode 2.0.21, not from docs.
+
+| Question                                        | Finding                                                                                                                                               | Evidence                                                                  |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Is there a sidebar surface?                     | `SlotMap` publishes `sidebar.content` and `sidebar.footer`, input `{sessionID}`                                                                       | `@opencode/plugin/dist/tui/context.d.ts`; host renders the outlet         |
+| How does a TUI plugin load?                     | `cli.json` `plugins` array; entry `{id, setup}`; the host resolves `./tui` and transpiles `.ts`/`.tsx` with no build step                             | `oc-tps` ships raw `tui.tsx`; loader log `entrypoint=.../tui.tsx`         |
+| Where does the TUI read todo state?             | Off the assistant messages. `data.session.message.list(sid)` exposes tool parts whose `state.metadata.phases` is the plugin's own tool result, intact | `scripts/sidebar-check.mjs`                                               |
+| Is the render reactive?                         | Yes. `data.on("session.tool.success")` fires per mutation and the message list is already fresh inside the handler                                    | one shared `opencode serve`; a snapshot at the event showed the new phase |
+| Does the TUI entry need its own `node_modules`? | No. The host supplies `@opentui/solid` and `solid-js`                                                                                                 | rendered with `node_modules` moved away; declared as optional peers       |
+| Does the host truncate the metadata?            | Not at these sizes; it adds `truncated: false` beside the plugin's keys                                                                               | metadata dumps at 3 phases / 24 tasks                                     |
+
+**Design.** `src/hud.ts` is the host-free view model and `src/tui.tsx` is a thin
+slot adapter, so the view logic is unit tested rather than eyeballed. Rows are a
+discriminated union and the status markers are an exhaustive
+`Record<TodoStatus, string>`, so a new status is one entry and one type error,
+not another branch. `selectCollapsedTodos` and `COLLAPSED_ITEMS_CAP` were
+ported, tested, and had zero callers; the sidebar is their consumer.
+
+**Refresh.** The event path is the hot path. A 2s poll stays as a backstop
+because `/todo` writes storage without a tool call, so no `tool.success` event
+fires for a manual edit.
+
+**Rejected.** An RPC channel between the server and TUI plugins
+(`ctx.rpc.register`). It needs a definition, handlers, and a subscribe protocol
+to carry data the tool result already carries.
+
+**Probe discipline.** The first reactivity probe reported "no events", and that
+was wrong: it gave both processes `--standalone`, so each had a private server
+and nothing could cross. The corrected probe uses one shared `opencode serve`
+with `OPENCODE_PASSWORD`. The first sidebar assertions were also wrong, matching
+`Foundation` anywhere in the log including the transcript's echo of the prompt.
+They now replay the PTY escapes into a screen grid (`scripts/screen.mjs`) and
+match the rendered row format, and the negative control confirms transcript text
+alone cannot satisfy them.
