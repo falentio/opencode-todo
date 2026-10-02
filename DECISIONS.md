@@ -62,12 +62,12 @@ reading docs.
 
 | Gate            | Command                          | Result                                       |
 | --------------- | -------------------------------- | -------------------------------------------- |
-| Unit tests      | `vp test run`                    | 165 passed                                   |
+| Unit tests      | `vp test run`                    | 168 passed                                   |
 | Typecheck       | `npx tsc --noEmit`               | clean                                        |
 | Format and lint | `vp check`                       | 0 errors, 0 warnings                         |
 | Build           | `vp pack`                        | `dist/index.mjs`, 67 kB                      |
 | End to end      | `node scripts/smoke.mjs`         | 11/11 checks, stable across 3 runs           |
-| Sidebar         | `node scripts/sidebar-check.mjs` | 4/4 checks, sidebar painted and updated live |
+| Sidebar         | `node scripts/sidebar-check.mjs` | 7/7 checks, sidebar painted and updated live |
 
 The smoke test's checks: the CLI responds, the tool is in the model's catalog,
 `init` ran and completed, the summary listed both tasks, the metadata carried
