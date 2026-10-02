@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vite-plus/test";
-import { buildTodoHud, phasesFromMessages, rowText } from "../src/hud.ts";
+import { buildTodoHud, displayWidth, phasesFromMessages, rowText } from "../src/hud.ts";
 import { COLLAPSED_ITEMS_CAP } from "../src/state.ts";
 import type { TodoItem, TodoPhase, TodoStatus } from "../src/types.ts";
 
@@ -163,17 +163,17 @@ describe("buildTodoHud", () => {
   });
 
   it("keeps the default row within the host's measured sidebar width", () => {
-    // The host cuts a row past 37 columns, which loses the ellipsis, so the
-    // default must stay under it.
+    // The host wraps a row wider than 37 columns onto a second screen row,
+    // which breaks the column layout, so the default must stay under it.
     const long = task("w".repeat(200), "blocked", "b".repeat(200));
     const hud = buildTodoHud([phase("P".repeat(50), [long])]);
     for (const row of hud.rows) {
-      expect(rowText(row).length).toBeLessThanOrEqual(37);
+      expect(displayWidth(rowText(row))).toBeLessThanOrEqual(37);
     }
   });
 
   it("never splits a surrogate pair when truncating", () => {
-    // Slicing at a fixed code-unit index can land inside an emoji and leave a
+    // Cutting at a fixed code-unit index can land inside an emoji and leave a
     // lone surrogate, which renders as a replacement character.
     const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
     const cases = [
@@ -181,24 +181,28 @@ describe("buildTodoHud", () => {
       task("日本語".repeat(50), "pending"),
       task("🎉".repeat(30), "blocked", "🎉".repeat(30)),
       task("👨‍👩‍👧‍👦".repeat(20), "pending"),
+      task("e\u0301".repeat(40), "pending"),
     ];
     for (const item of cases) {
       const row = buildTodoHud([phase("P", [item])]).rows[2];
       if (row === undefined) throw new Error("expected a task row");
       const text = rowText(row);
-      expect(text.length).toBeLessThanOrEqual(37);
+      expect(displayWidth(text)).toBeLessThanOrEqual(37);
       expect(lone.test(text)).toBe(false);
     }
   });
 
   it("holds the width and the surrogate rule at every width", () => {
-    // The narrow widths matter too: the first version sliced blindly below
-    // width 2 and emitted a lone surrogate from an emoji phase name.
+    // A CJK character is one code unit and two columns, so a unit-based cap
+    // lets a row wrap. The narrow widths matter too: the first version sliced
+    // blindly below width 2 and emitted a lone surrogate from an emoji name.
     const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
     const rows = [
       { kind: "task", content: "🎉".repeat(30), status: "blocked", blocker: "🎉".repeat(30) },
-      { kind: "phase", name: "🎉🎉🎉", done: 1, total: 2 },
+      { kind: "task", content: "日本語".repeat(30), status: "pending" },
+      { kind: "task", content: "👨‍👩‍👧‍👦".repeat(10), status: "pending" },
       { kind: "phase", name: "日本語".repeat(20), done: 0, total: 1 },
+      { kind: "phase", name: "🎉🎉🎉", done: 1, total: 2 },
       { kind: "summary", done: 1, total: 2, blocked: 1 },
       { kind: "more", hidden: 9 },
       { kind: "empty" },
@@ -207,9 +211,18 @@ describe("buildTodoHud", () => {
       for (const row of rows) {
         const text = rowText(row, width);
         expect(lone.test(text)).toBe(false);
-        expect(text.length).toBeLessThanOrEqual(Math.max(width, 0));
+        expect(displayWidth(text)).toBeLessThanOrEqual(Math.max(width, 0));
       }
     }
+  });
+
+  it("measures a wide character as two columns", () => {
+    expect(displayWidth("ab")).toBe(2);
+    expect(displayWidth("日本")).toBe(4);
+    expect(displayWidth("🎉")).toBe(2);
+    expect(displayWidth("")).toBe(0);
+    // A combining mark adds no column of its own.
+    expect(displayWidth("e\u0301")).toBe(1);
   });
 });
 

@@ -38,13 +38,36 @@ export interface TodoHudOptions {
 const TOOL_NAME = "todo";
 
 /**
- * Usable sidebar content width in columns.
+ * Usable sidebar content width in display columns.
  *
- * Measured against the host: a row longer than 37 columns is cut by the host
- * rather than by `rowText`, which loses the ellipsis and can split a word. 36
- * keeps a column of margin under that limit.
+ * Measured against the host: a row wider than 37 columns wraps onto a second
+ * screen row, which breaks the column layout. 36 keeps a column of margin.
+ * The unit is display columns, not UTF-16 code units: a CJK or emoji
+ * character occupies two columns, so counting code units would let a row wrap.
  */
 export const SIDEBAR_WIDTH = 36;
+
+/** Grapheme clusters, so a combining mark or an emoji ZWJ sequence stays whole. */
+const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/** Zero columns: combining marks, joiners, and variation selectors. */
+const ZERO_WIDTH = /^[\p{Mn}\p{Me}\u200B-\u200F\u2060-\u2064\uFE00-\uFE0F]+$/u;
+
+/** Two columns: East Asian Wide and Fullwidth forms, and emoji. */
+const WIDE =
+  /[\p{Extended_Pictographic}\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/u;
+
+function clusterWidth(cluster: string): number {
+  if (ZERO_WIDTH.test(cluster)) return 0;
+  return WIDE.test(cluster) ? 2 : 1;
+}
+
+/** Columns a string occupies in a terminal. */
+export function displayWidth(value: string): number {
+  let width = 0;
+  for (const { segment } of SEGMENTER.segment(value)) width += clusterWidth(segment);
+  return width;
+}
 
 /** Marker per status. Exhaustive over `TodoStatus`, so a new status is a type error, not a silent fallback. */
 export const TODO_STATUS_MARKERS: Record<TodoStatus, string> = {
@@ -122,26 +145,27 @@ function isDone(status: TodoStatus): boolean {
 }
 
 /**
- * Truncate to `width` UTF-16 code units, keeping a trailing ellipsis.
+ * Truncate to `width` display columns, keeping a trailing ellipsis.
  *
- * The cut is made on code points, not code units: slicing at an arbitrary
- * index can land between the two halves of an emoji's surrogate pair and
- * leave a lone surrogate, which renders as a replacement character. A string
- * of `width` code units can still exceed `width` display columns for wide
- * characters, but the host measures the same way, so the two agree.
+ * Measured in columns, not code units, because the host wraps a row that
+ * exceeds the sidebar's column budget: a CJK character is one code unit and
+ * two columns, so a unit-based cap lets a row wrap. The cut is made on
+ * grapheme clusters, so it cannot land inside an emoji's surrogate pair or
+ * separate a combining mark from its base.
  */
 function truncate(value: string, width: number): string {
   if (width <= 0) return "";
-  if (value.length <= width) return value;
+  if (displayWidth(value) <= width) return value;
   // Leave room for the ellipsis, except at width 1 where there is none to
-  // spare: a lone surrogate is still worse than a bare marker.
+  // spare: a bare glyph beats a lone surrogate.
   const budget = width <= 1 ? width : width - 1;
   const kept: string[] = [];
   let used = 0;
-  for (const point of Array.from(value)) {
-    if (used + point.length > budget) break;
-    kept.push(point);
-    used += point.length;
+  for (const { segment } of SEGMENTER.segment(value)) {
+    const size = clusterWidth(segment);
+    if (used + size > budget) break;
+    kept.push(segment);
+    used += size;
   }
   return width <= 1 ? kept.join("") : `${kept.join("")}…`;
 }
