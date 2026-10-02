@@ -26,7 +26,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { screenLines } from "./screen.mjs";
-import { buildTodoHud, rowText } from "../src/hud.ts";
+import { buildTodoHud, rowText, SIDEBAR_WIDTH } from "../src/hud.ts";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const binary = process.env.OPENCODE_BIN ?? "opencode";
@@ -344,7 +344,7 @@ check(
 // the transcript pane shares the row. The prefix includes the status marker,
 // which only the sidebar draws, so transcript prose cannot satisfy it.
 if (!bootOnly) {
-  const expected = buildTodoHud(persistedPhases).rows.map((row) => rowText(row, 42));
+  const expected = buildTodoHud(persistedPhases).rows.map((row) => rowText(row, SIDEBAR_WIDTH));
   const painted = lines.join("\n");
   const MIN_PREFIX = 12;
   const missing = expected.filter((row) => {

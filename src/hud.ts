@@ -36,7 +36,15 @@ export interface TodoHudOptions {
 }
 
 const TOOL_NAME = "todo";
-const DEFAULT_WIDTH = 30;
+
+/**
+ * Usable sidebar content width in columns.
+ *
+ * Measured against the host: a row longer than 37 columns is cut by the host
+ * rather than by `rowText`, which loses the ellipsis and can split a word. 36
+ * keeps a column of margin under that limit.
+ */
+export const SIDEBAR_WIDTH = 36;
 
 /** Marker per status. Exhaustive over `TodoStatus`, so a new status is a type error, not a silent fallback. */
 export const TODO_STATUS_MARKERS: Record<TodoStatus, string> = {
@@ -48,7 +56,7 @@ export const TODO_STATUS_MARKERS: Record<TodoStatus, string> = {
 };
 
 /** The single line the sidebar draws for a row, truncated to `width`. */
-export function rowText(row: HudRow, width: number = DEFAULT_WIDTH): string {
+export function rowText(row: HudRow, width: number = SIDEBAR_WIDTH): string {
   // Truncate the ASSEMBLED line, not each field: a task and its blocker note
   // each fitting the width can still overflow once joined, and an overflowing
   // row wraps and breaks the column layout.
