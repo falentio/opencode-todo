@@ -12,6 +12,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { screenLines } from "./screen.mjs";
+import { buildTodoHud, displayWidth, rowText, SIDEBAR_WIDTH } from "../src/hud.ts";
 
 const binary = process.env.OPENCODE_BIN ?? "opencode";
 const model = process.env.OPENCODE_TODO_SMOKE_MODEL ?? "9router/glm";
@@ -141,13 +142,16 @@ function phasesIn(sessionID) {
 }
 
 const sessionID = `ses_cjk${Date.now().toString(36)}`;
+// A freshly registered location boots with an empty tool catalog on its first
+// call, so warm a throwaway session before driving the real one.
 run("Reply with exactly: WARM", sessionID);
+run("Reply with exactly: WARM2", `ses_cjkwarm${Date.now().toString(36)}`);
 // Long CJK task content: 40 units would be 80 columns if measured in code units.
 const cjkTasks = [
   "日本語のタスク内容をここに書きます非常に長い説明文です",
   "二番目の項目も十分に長い日本語のテキストにします",
 ];
-for (let attempt = 1; attempt <= 3; attempt++) {
+for (let attempt = 1; attempt <= 4; attempt++) {
   run(
     `Call the todo tool exactly once with op=init and list=[{phase:'実装',items:[${cjkTasks.map((t) => `'${t}'`).join(",")}]}]. Then stop.`,
     sessionID,
@@ -155,8 +159,6 @@ for (let attempt = 1; attempt <= 3; attempt++) {
   const phases = phasesIn(sessionID);
   if (phases && phases.length === 1) break;
 }
-const persisted = phasesIn(sessionID);
-console.log(`cjk: phases persisted = ${JSON.stringify(persisted?.map((p) => p.name))}`);
 
 const logPath = join(root, "tui.log");
 const pairs = Object.entries(env)
@@ -173,6 +175,9 @@ const tui = spawn(
   { cwd: work, env: { ...runEnv, OPENCODE_PASSWORD: password }, stdio: "ignore" },
 );
 await new Promise((r) => setTimeout(r, 30_000));
+// Capture while the server is up: `session export` needs a live server.
+const finalPhases = phasesIn(sessionID);
+
 tui.kill("SIGTERM");
 await new Promise((r) => setTimeout(r, 3000));
 try {
@@ -185,16 +190,45 @@ try {
 } catch {}
 
 const lines = screenLines(readFileSync(logPath, "utf8"), { rows: 60, cols: 220 });
-console.log("--- sidebar region (cols 155..200) ---");
-const sidebarRows = [];
+
+// The sidebar occupies the rightmost columns. A row that wrapped would push its
+// tail onto the next screen row, so counting the screen rows the list consumes
+// is the check: the persisted list needs exactly one row per rendered line, and
+// a wrap adds one.
+const persisted = finalPhases ?? [];
+const expectedRows = buildTodoHud(persisted).rows.map((row) => rowText(row, SIDEBAR_WIDTH));
+const missing = expectedRows.filter((row) => !lines.some((line) => line.includes(row)));
+
+console.log("--- sidebar region (cols 150..205) ---");
 for (const l of lines) {
-  const region = l.slice(155, 200);
-  if (region.trim()) {
-    sidebarRows.push(region);
-    console.log("  " + JSON.stringify(region));
-  }
+  const region = l.slice(150, 205);
+  if (region.trim()) console.log("  " + JSON.stringify(region));
 }
-const cjkRowCount = sidebarRows.filter((r) => /[実装日]|タスク|項目/.test(r)).length;
-console.log(`\ncjk: sidebar rows containing CJK = ${cjkRowCount}`);
-console.log(`cjk: expected at most ${2 + 2} (1 summary + 1 phase + 2 tasks) if nothing wrapped`);
+console.log(`\ncjk: expected rows (${expectedRows.length}): ${JSON.stringify(expectedRows)}`);
+
+const failures = [];
+// The check is worthless if the drive never persisted CJK content: it would
+// then assert "No todos" is on one line, which exercises nothing.
+const cjkTasksPersisted = persisted
+  .flatMap((phase) => phase.tasks)
+  .filter((t) => /[\u3000-\u9fff]/.test(t.content));
+if (persisted.length === 0) {
+  failures.push("no todo list was persisted; the drive did not run");
+} else if (cjkTasksPersisted.length === 0) {
+  failures.push(`the persisted list carries no CJK task: ${JSON.stringify(persisted)}`);
+}
+if (missing.length > 0)
+  failures.push(`rows not found whole on one line: ${JSON.stringify(missing)}`);
+for (const row of expectedRows) {
+  if (displayWidth(row) > 37)
+    failures.push(`row exceeds the host's 37-column limit: ${JSON.stringify(row)}`);
+}
+
+for (const failure of failures) console.log(`  [FAIL] ${failure}`);
+if (failures.length > 0) {
+  console.log(`\ncjk: ${failures.length} check(s) failed`);
+  rmSync(root, { recursive: true, force: true });
+  process.exit(1);
+}
+console.log(`\ncjk: all checks passed (${expectedRows.length} rows, each whole on one line)`);
 rmSync(root, { recursive: true, force: true });
