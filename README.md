@@ -96,7 +96,7 @@ provides the tool:
 ```
 ~/.config/opencode/cli.json
 {
-  "plugins": ["@kevin/opencode-todo"]
+  "plugins": ["@falentio/opencode-todo"]
 }
 ```
 
@@ -125,20 +125,35 @@ appears on the next `todo` tool result rather than immediately.
 
 ## Install
 
-From a checkout:
+Two plugin entrypoints, so two config files. The server plugin registers the
+`todo` tool, the `/todo` command, the skill, and the session reminders. The TUI
+plugin paints the sidebar.
+
+From npm, add the server plugin to `opencode.json`:
+
+```json
+{
+  "plugins": ["@falentio/opencode-todo"]
+}
+```
+
+Add the same package to `cli.json` to get the sidebar:
+
+```json
+{
+  "plugins": ["@falentio/opencode-todo"]
+}
+```
+
+From a checkout, symlink the package directory into both discovery paths:
 
 ```bash
 vp install && vp pack
 ln -s "$PWD" ~/.config/opencode/plugins/opencode-todo
 ```
 
-From npm, add it to `opencode.json`:
-
-```json
-{
-  "plugins": ["@kevin/opencode-todo"]
-}
-```
+A checkout resolves the server entrypoint through `.opencode/plugins/`, and the
+TUI entrypoint through the `plugins` array in `cli.json` or `opencode.json`.
 
 ## Configure
 
@@ -209,12 +224,13 @@ eyeballed in a terminal.
 
 ```bash
 vp install
-vp test run        # 174 unit tests
-npx tsc --noEmit   # typecheck
-vp check           # format and lint
-vp pack            # build dist/
+vp test run          # 174 unit tests
+npx tsc --noEmit     # typecheck
+vp check             # format and lint
+vp pack              # build dist/
 node scripts/smoke.mjs
 node scripts/sidebar-check.mjs
+node scripts/publish-probe.mjs
 ```
 
 `scripts/smoke.mjs` drives two real `opencode` processes in a sandbox directory,
@@ -233,6 +249,19 @@ and asserts against the painted terminal log, because the sidebar is drawn by
 the TUI and never appears in the transcript. Add `--boot` to skip the model
 calls. Two processes with `--standalone` would each get a private server, so no
 event could cross between them; one shared server is what makes the check real.
+
+`scripts/publish-probe.mjs` proves the packed artifact works the way a published
+install uses it. It runs two arms. The first npm-installs the tarball and imports
+the entrypoint with a bare `node` process, which has no access to the checkout's
+`node_modules`. The second unpacks the tarball under a `node_modules` path and
+boots the TUI against it, then reads the loader log for both entrypoints.
+
+Both arms catch failures a checkout hides. `dist/index.mjs` must not import a
+package it does not declare, because an optional peer installs nothing and the
+import throws only on a real install. The TUI entrypoint must not be raw `.tsx`,
+because the host's JSX transform skips paths under `node_modules`, so a `.tsx`
+entry works from a symlinked checkout and fails once published. Add `--keep` to
+keep the sandbox.
 
 ## Differences from the pi extension
 

@@ -126,3 +126,85 @@ with `OPENCODE_PASSWORD`. The first sidebar assertions were also wrong, matching
 They now replay the PTY escapes into a screen grid (`scripts/screen.mjs`) and
 match the rendered row format, and the negative control confirms transcript text
 alone cannot satisfy them.
+
+## Publishing
+
+The package publishes as `@falentio/opencode-todo`. Two defects had to be fixed
+first, and both were invisible from a checkout. Every claim below came from
+running opencode 2.0.21 and npm 11.19.0.
+
+### The loader's entrypoint contract
+
+The host picks entrypoints with this function, decompiled from the 2.0.21
+binary. For a named package it resolves `<name>/server`, then bare `<name>`, then
+`<name>/tui`, through Node resolution and therefore through the installed
+package's `exports` map.
+
+```js
+function Rm(r) {
+  let n = (t) => {
+    for (let o of t) {
+      let i = r.name ? [r.name, o].filter(Boolean).join("/") : s.resolve(r.directory, o || "index");
+      try {
+        return Xm(i, r.directory);
+      } catch (e) {
+        /* skip ENOENT, MODULE_NOT_FOUND, ERR_PACKAGE_PATH_NOT_EXPORTED */
+      }
+    }
+    return;
+  };
+  return { server: n(["server", ""]), tui: n(["tui"]), rpc: n(["rpc"]) };
+}
+```
+
+A package with neither a server nor a TUI entrypoint is rejected whole, with
+`Plugin package has no server or TUI entrypoint: <spec>`. `@falentio/opencode-zedokai`
+carries an empty `./server` for exactly this reason.
+
+### Bug: the packed artifact could not load
+
+| Symptom                                                                                       | Root cause                                                                                                                                                                            | Fix                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node -e "import('<pkg>/dist/index.mjs')"` threw `ERR_MODULE_NOT_FOUND` on a real npm install | `dist/index.mjs` runtime-imported `@opencode/plugin`, declared as an _optional_ peer, so npm installed nothing for it. A checkout hid this by resolving the repo's own `node_modules` | `import type` in `src/index.ts`, plus a typed object literal instead of `Plugin.define`. `define` is the identity function, so this deletes the dependency rather than adding one |
+
+### Bug: a raw `.tsx` TUI entrypoint does not survive publishing
+
+| Symptom                                             | Root cause                                                                                                                                                                                                          | Fix                                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| The sidebar never appeared from a published install | The host's solid JSX transform filter is `/^(?!.*[/\\]node_modules[/\\]).*\.[cm]?[jt]sx?$/`, a negative lookahead that **excludes** `node_modules`. A symlinked checkout is transpiled; an installed package is not | `src/tui.tsx` is now a second `pack.entry`, and `./tui` points at the built `dist/tui.mjs` |
+
+`dist/tui.mjs` imports `solid-js` and `@opentui/solid/jsx-runtime`, which the host
+supplies to `node_modules` code through its runtime module map
+(`nodeModulesRuntimeSpecifiers`). Both stay optional peers for that reason.
+
+### Why the probe unpacks instead of naming the registry package
+
+The host npm-installs a named spec before resolving it. A registry name would
+make the probe fetch the package from npm and fail with a 404 before the first
+publish, and placing files in the config directory's `node_modules` is not
+enough, because the host re-installs and overwrites them. The probe therefore
+unpacks the tarball under a `node_modules` path and names that path as a `file:`
+spec, which reaches the same resolution and transform path a registry install
+takes.
+
+`opencode serve` on its own does not reconcile plugins, so a bare server boot
+proves nothing. The TUI is the surface that reconciles, and the probe reads its
+loader log.
+
+### Manifest
+
+| Field              | Value                                                        | Why                                                                                        |
+| ------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `exports`          | `.`, `./server` → `dist/index.mjs`; `./tui` → `dist/tui.mjs` | Both entrypoint names the loader probes, plus the bare name                                |
+| `dependencies`     | none                                                         | The host supplies the runtime. A bundled copy would duplicate it and break plugin identity |
+| `peerDependencies` | `@opentui/solid`, `solid-js`, both optional                  | The host maps these specifiers for `node_modules` code                                     |
+| `publishConfig`    | `access: public`, `provenance: true`                         | Scoped packages default to restricted, and provenance is free on a public repo             |
+| `engines`          | `opencode: ^2.0.0`                                           | The plugin targets the v2 API only                                                         |
+
+### The first publish needs a token
+
+npm trusted publishing cannot publish a package's initial version. The npmjs.com
+UI requires the package to exist before a trusted publisher can be attached
+(npm/cli#8544, still open). So 0.1.0 goes out with a token, and later versions go
+out through the `publish.yml` OIDC workflow once the trusted publisher points at
+`falentio/opencode-todo` and `.github/workflows/publish.yml`.
