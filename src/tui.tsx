@@ -46,11 +46,10 @@ const plugin: Plugin.Definition = {
           // `sync` is a backstop; a failure just leaves the event path working.
         }
       }, POLL_INTERVAL_MS);
-      try {
-        context.lifecycle?.onDispose?.(() => clearInterval(timer));
-      } catch {
-        // No lifecycle hook available; the timer dies with the TUI process.
-      }
+      // The context exposes no dispose hook, so the timer lives as long as the
+      // TUI process does. That is the plugin's own lifetime, so nothing leaks
+      // beyond it.
+      timer.unref?.();
 
       context.ui.slot({
         append: "sidebar.content",
