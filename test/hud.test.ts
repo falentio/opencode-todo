@@ -6,7 +6,13 @@
  */
 
 import { describe, expect, it } from "vite-plus/test";
-import { buildTodoHud, displayWidth, phasesFromMessages, rowText } from "../src/hud.ts";
+import {
+  buildTodoHud,
+  displayWidth,
+  phasesFromMessages,
+  rowText,
+  SIDEBAR_WIDTH,
+} from "../src/hud.ts";
 import { COLLAPSED_ITEMS_CAP } from "../src/state.ts";
 import type { TodoItem, TodoPhase, TodoStatus } from "../src/types.ts";
 
@@ -223,6 +229,35 @@ describe("buildTodoHud", () => {
     expect(displayWidth("")).toBe(0);
     // A combining mark adds no column of its own.
     expect(displayWidth("e\u0301")).toBe(1);
+  });
+
+  it("measures astral wide scripts as two columns", () => {
+    // East Asian Width has no JavaScript property, so the astral ranges are
+    // data. Omitting them let a row overflow the budget and wrap.
+    const astral = [
+      "\u{20000}", // CJK Unified Ideographs Extension B
+      "\u{2A6B2}", // Extension B, inside the range
+      "\u{30000}", // Extension G
+      "\u{17000}", // Tangut
+      "\u{1B000}", // Kana Supplement
+      "\u{1B170}", // Nushu
+      "🇯🇵", // Regional indicator pair renders two columns
+    ];
+    for (const glyph of astral) {
+      expect(displayWidth(glyph)).toBe(2);
+    }
+    // Plain ASCII astral-adjacent characters stay one column.
+    expect(displayWidth("a")).toBe(1);
+    expect(displayWidth("\u{10000}")).toBe(1); // Linear B, width 1
+  });
+
+  it("does not overflow the budget on astral content", () => {
+    const astral = ["\u{20000}", "\u{17000}", "\u{1B000}", "\u{1B170}", "🇯🇵"];
+    for (const glyph of astral) {
+      const row = { kind: "task", content: glyph.repeat(40), status: "pending" } as const;
+      const text = rowText(row, SIDEBAR_WIDTH);
+      expect(displayWidth(text)).toBeLessThanOrEqual(SIDEBAR_WIDTH);
+    }
   });
 });
 

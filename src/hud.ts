@@ -50,20 +50,53 @@ export const SIDEBAR_WIDTH = 36;
 /** Grapheme clusters, so a combining mark or an emoji ZWJ sequence stays whole. */
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
+/** Two columns in the BMP: East Asian Wide and Fullwidth forms. */
+const BMP_WIDE =
+  /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/u;
+
+/** Emoji and flags render two columns. */
+const PICTOGRAPHIC = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
+
 /**
- * Two columns: East Asian Wide and Fullwidth forms, and emoji.
+ * East Asian Wide and Fullwidth blocks above the BMP.
  *
- * Everything else counts one column. The segmenter has already merged
- * combining marks and variation selectors into their base cluster, so the only
- * thing this can misjudge is a cluster that renders zero columns on its own,
- * and counting that as one truncates a row a column early rather than letting
- * it wrap.
+ * JavaScript exposes no East Asian Width property, so the ranges are data. The
+ * astral planes hold CJK extensions B through G, Tangut, Kana Supplement, and
+ * Nushu, all of which render two columns; omitting them let a row overflow the
+ * width budget and wrap. Emoji blocks are absent because `PICTOGRAPHIC` covers
+ * them. Source: Unicode 15.1 EastAsianWidth.txt, W and F ranges at or above
+ * U+10000.
  */
-const WIDE =
-  /[\p{Extended_Pictographic}\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/u;
+const ASTRAL_WIDE: readonly (readonly [number, number])[] = [
+  [0x16fe0, 0x16fe4], // Tangut ideographic symbols
+  [0x16ff0, 0x16ff1],
+  [0x17000, 0x187f7], // Tangut
+  [0x18800, 0x18cd5], // Tangut components
+  [0x18d00, 0x18d08], // Tangut supplement
+  [0x1aff0, 0x1aff3], // Kana Extended-B
+  [0x1aff5, 0x1affb],
+  [0x1affd, 0x1affe],
+  [0x1b000, 0x1b122], // Kana Supplement and Kana Extended-A
+  [0x1b132, 0x1b132],
+  [0x1b150, 0x1b152], // Small Kana Extension
+  [0x1b155, 0x1b155],
+  [0x1b164, 0x1b167],
+  [0x1b170, 0x1b2fb], // Nushu
+  [0x20000, 0x2fffd], // CJK Unified Ideographs Extension B through F
+  [0x30000, 0x3fffd], // CJK Unified Ideographs Extension G
+];
+
+function isAstralWide(code: number): boolean {
+  for (const [start, end] of ASTRAL_WIDE) {
+    if (code >= start && code <= end) return true;
+  }
+  return false;
+}
 
 function clusterWidth(cluster: string): number {
-  return WIDE.test(cluster) ? 2 : 1;
+  if (PICTOGRAPHIC.test(cluster) || BMP_WIDE.test(cluster)) return 2;
+  const code = cluster.codePointAt(0);
+  return code !== undefined && isAstralWide(code) ? 2 : 1;
 }
 
 /** Columns a string occupies in a terminal. */
