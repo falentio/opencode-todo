@@ -190,6 +190,27 @@ describe("buildTodoHud", () => {
       expect(lone.test(text)).toBe(false);
     }
   });
+
+  it("holds the width and the surrogate rule at every width", () => {
+    // The narrow widths matter too: the first version sliced blindly below
+    // width 2 and emitted a lone surrogate from an emoji phase name.
+    const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    const rows = [
+      { kind: "task", content: "🎉".repeat(30), status: "blocked", blocker: "🎉".repeat(30) },
+      { kind: "phase", name: "🎉🎉🎉", done: 1, total: 2 },
+      { kind: "phase", name: "日本語".repeat(20), done: 0, total: 1 },
+      { kind: "summary", done: 1, total: 2, blocked: 1 },
+      { kind: "more", hidden: 9 },
+      { kind: "empty" },
+    ] as const;
+    for (let width = 0; width <= 40; width++) {
+      for (const row of rows) {
+        const text = rowText(row, width);
+        expect(lone.test(text)).toBe(false);
+        expect(text.length).toBeLessThanOrEqual(Math.max(width, 0));
+      }
+    }
+  });
 });
 
 describe("rowText", () => {

@@ -131,19 +131,19 @@ function isDone(status: TodoStatus): boolean {
  * characters, but the host measures the same way, so the two agree.
  */
 function truncate(value: string, width: number): string {
+  if (width <= 0) return "";
   if (value.length <= width) return value;
-  if (width <= 1) return value.slice(0, Math.max(0, width));
-  const codePoints = Array.from(value);
+  // Leave room for the ellipsis, except at width 1 where there is none to
+  // spare: a lone surrogate is still worse than a bare marker.
+  const budget = width <= 1 ? width : width - 1;
   const kept: string[] = [];
   let used = 0;
-  for (const point of codePoints) {
-    const size = point.length;
-    // Stop before overflowing, leaving room for the ellipsis.
-    if (used + size > width - 1) break;
+  for (const point of Array.from(value)) {
+    if (used + point.length > budget) break;
     kept.push(point);
-    used += size;
+    used += point.length;
   }
-  return `${kept.join("")}…`;
+  return width <= 1 ? kept.join("") : `${kept.join("")}…`;
 }
 
 /** Build the sidebar view. Row text is truncated to the terminal width by `rowText`. */
