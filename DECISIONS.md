@@ -50,15 +50,17 @@ reading docs.
 
 ## Bugs found and fixed during the port
 
-| Symptom                                                                       | Root cause                                                                          | Fix                                              |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Sandbox loaded no plugins at all                                              | `execFileSync({cwd})` leaves `PWD` stale; OpenCode resolves the project from `PWD`  | Set `env.PWD` in the smoke script                |
-| A 0755 sandbox still loaded nothing                                           | `mkdtemp` creates 0700 and OpenCode skips plugins in a directory it cannot traverse | `chmod 755` after `mkdtemp`                      |
-| `vp check` scanned `node_modules` and reported 110k warnings                  | No ignore patterns                                                                  | `lint.ignorePatterns`                            |
-| `vp check` failed with `Detected cycle while resolving name 'configDefaults'` | A vite-plus 0.3.1 bug                                                               | Upgraded to vite-plus 1.0.0                      |
-| Lint died with `SIGKILL` before analysis                                      | `tsgolint` exceeds this machine's memory limit                                      | `typeAware: false`; `tsc --noEmit` covers types  |
-| Sidebar row ended in a lone `\ud83c` before the ellipsis                      | Truncating at a fixed code-unit index lands inside an emoji's surrogate pair        | Cut on grapheme clusters via `Intl.Segmenter`    |
-| A CJK row wrapped onto a second screen row                                    | `rowText` capped UTF-16 units, but the host wraps at display columns                | Measure display columns; a wide glyph counts two |
+| Symptom                                                                       | Root cause                                                                                                       | Fix                                                                       |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Sandbox loaded no plugins at all                                              | `execFileSync({cwd})` leaves `PWD` stale; OpenCode resolves the project from `PWD`                               | Set `env.PWD` in the smoke script                                         |
+| A 0755 sandbox still loaded nothing                                           | `mkdtemp` creates 0700 and OpenCode skips plugins in a directory it cannot traverse                              | `chmod 755` after `mkdtemp`                                               |
+| `vp check` scanned `node_modules` and reported 110k warnings                  | No ignore patterns                                                                                               | `lint.ignorePatterns`                                                     |
+| `vp check` failed with `Detected cycle while resolving name 'configDefaults'` | A vite-plus 0.3.1 bug                                                                                            | Upgraded to vite-plus 1.0.0                                               |
+| Lint died with `SIGKILL` before analysis                                      | `tsgolint` exceeds this machine's memory limit                                                                   | `typeAware: false`; `tsc --noEmit` covers types                           |
+| Sidebar row ended in a lone `\ud83c` before the ellipsis                      | Truncating at a fixed code-unit index lands inside an emoji's surrogate pair                                     | Cut on grapheme clusters via `Intl.Segmenter`                             |
+| A CJK row wrapped onto a second screen row                                    | `rowText` capped UTF-16 units, but the host wraps at display columns                                             | Measure display columns; a wide glyph counts two                          |
+| An astral CJK or Tangut row wrapped, though `displayWidth` said 36            | The wide-glyph regex covered only the BMP, so CJK Ext B-G, Tangut, Kana Supplement, and Nushu counted one column | Encode the astral wide ranges as data and include regional indicators     |
+| The sidebar did not update after a `/todo` edit                               | `/todo` writes storage and sends a synthetic message; the sidebar reads only tool results                        | Corrected the claim; a manual edit appears on the next `todo` tool result |
 
 ## Verification
 
@@ -104,9 +106,13 @@ discriminated union and the status markers are an exhaustive
 not another branch. `selectCollapsedTodos` and `COLLAPSED_ITEMS_CAP` were
 ported, tested, and had zero callers; the sidebar is their consumer.
 
-**Refresh.** The event path is the hot path. A 2s poll stays as a backstop
-because `/todo` writes storage without a tool call, so no `tool.success` event
-fires for a manual edit.
+**Refresh.** The event path is the hot path: `session.tool.success` fires on
+each todo mutation and the message list is already fresh inside the handler. A
+2s poll recovers a missed event, not a `/todo` edit. `/todo` writes storage and
+sends a synthetic message, and the sidebar reads only tool results, so a manual
+edit appears on the next `todo` tool result. An earlier draft claimed the poll
+covered `/todo`; an independent probe refuted that by watching the sidebar stay
+byte-identical across seven poll intervals after a `/todo` write.
 
 **Rejected.** An RPC channel between the server and TUI plugins
 (`ctx.rpc.register`). It needs a definition, handlers, and a subscribe protocol

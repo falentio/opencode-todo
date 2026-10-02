@@ -119,8 +119,9 @@ Auth 0/1
 ```
 
 The view reads the todo state the tool already reports, so nothing extra is
-persisted and there is no side channel. It updates on each `todo` tool result,
-with a slow poll as a backstop for a list edited through `/todo`.
+persisted and there is no side channel. It updates on each `todo` tool result.
+A `/todo` edit changes the stored list without producing a tool result, so it
+appears on the next `todo` tool result rather than immediately.
 
 ## Install
 
@@ -208,7 +209,7 @@ eyeballed in a terminal.
 
 ```bash
 vp install
-vp test run        # 165 unit tests
+vp test run        # 174 unit tests
 npx tsc --noEmit   # typecheck
 vp check           # format and lint
 vp pack            # build dist/

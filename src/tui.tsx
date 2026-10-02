@@ -8,7 +8,14 @@ import type { TodoPhase } from "./types.ts";
 // that specifier for installed plugins, so a value import would fail at load.
 // `@opentui/solid` and `solid-js` are supplied by the host at runtime.
 
-/** Backstop interval for a mutation that arrives without a tool event. */
+/**
+ * Recovery poll: re-reads the message list in case a `session.tool.success`
+ * event was missed while the TUI was reconnecting.
+ *
+ * It cannot see a `/todo` edit. That command writes storage and sends a
+ * synthetic message, and this plugin reads only tool results, so a manual edit
+ * appears on the next `todo` tool result rather than immediately.
+ */
 const POLL_INTERVAL_MS = 2_000;
 
 const plugin: Plugin.Definition = {
@@ -40,8 +47,8 @@ const plugin: Plugin.Definition = {
       } catch {
         // This callback runs on a timer, outside the host's own guard around
         // `setup`, so a synchronous throw here would be unhandled and take the
-        // user's TUI down. The poll is only a backstop, so swallowing it leaves
-        // the event path working.
+        // user's TUI down. The poll only recovers a missed event, so swallowing
+        // it leaves the event path working.
       }
     }, POLL_INTERVAL_MS);
     // The context exposes no dispose hook, so the timer lives as long as the
