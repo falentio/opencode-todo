@@ -100,6 +100,7 @@ try {
 // from `cli.json`, which resolves the package's `./tui` export.
 mkdirSync(join(work, ".opencode", "plugins"), { recursive: true });
 symlinkSync(packageRoot, join(work, ".opencode", "plugins", "opencode-todo"));
+
 writeFileSync(
   join(work, "opencode.json"),
   `${JSON.stringify({ $schema: "https://opencode.ai/config.json" }, null, 2)}\n`,
@@ -308,6 +309,10 @@ for (const line of lines) {
   }
 }
 
+// A load-error grep alone passes even when the plugin never loaded, because a
+// path that resolves to nothing produces no error string. The positive proof is
+// the content assertions below, which need a persisted list, so `--boot` cannot
+// make this claim. It asserts only that nothing errored.
 check(
   "the plugin loaded with no TUI error",
   !/failed to load plugin|entrypoint not found|Invalid V2 TUI/i.test(raw),
@@ -317,21 +322,26 @@ check(
     .slice(0, 3)
     .join("\n"),
 );
-check(
-  "the sidebar drew a summary row with the overall count",
-  lines.some((line) => SUMMARY_ROW.test(line)),
-  `looked for a row like "1/3 done"`,
-);
-check(
-  "the sidebar drew a phase row with its done count",
-  lines.some((line) => phaseName(line) === "Foundation"),
-  `looked for a row like "Foundation 0/2"`,
-);
-check(
-  "the sidebar drew a marker-prefixed task row",
-  lines.some((line) => TASK_ROW.test(line)),
-  `looked for a row like "○ scaffold crate"`,
-);
+// The three content assertions below need a persisted todo list, which only a
+// model drive can produce. In `--boot` mode there is none, so they would fail
+// by construction against a sidebar that is rendering correctly.
+if (!bootOnly) {
+  check(
+    "the sidebar drew a summary row with the overall count",
+    lines.some((line) => SUMMARY_ROW.test(line)),
+    `looked for a row like "1/3 done"`,
+  );
+  check(
+    "the sidebar drew a phase row with its done count",
+    lines.some((line) => phaseName(line) === "Foundation"),
+    `looked for a row like "Foundation 0/2"`,
+  );
+  check(
+    "the sidebar drew a marker-prefixed task row",
+    lines.some((line) => TASK_ROW.test(line)),
+    `looked for a row like "○ scaffold crate"`,
+  );
+}
 
 // The strongest assertion available: derive the rows the sidebar SHOULD draw
 // from the phases the tool actually persisted, then require each on screen.
