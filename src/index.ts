@@ -15,7 +15,7 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Plugin } from "@opencode/plugin";
+import type { Plugin } from "@opencode/plugin";
 import { runTodoCommand } from "./command.ts";
 import { resolveTodoConfig, type TodoConfig } from "./config.ts";
 import { executeTodoOp } from "./execute.ts";
@@ -36,7 +36,7 @@ interface SessionState {
   seenUserMessage: boolean;
 }
 
-export default Plugin.define({
+const plugin: Plugin.Plugin = {
   id: "todo",
   async setup(ctx) {
     const config: TodoConfig = resolveTodoConfig({
@@ -228,7 +228,9 @@ export default Plugin.define({
       sessions.clear();
     };
   },
-});
+};
+
+export default plugin;
 
 function messageText(message: {
   content?: ReadonlyArray<{ type?: string; text?: unknown }>;
