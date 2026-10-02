@@ -50,15 +50,19 @@ export const SIDEBAR_WIDTH = 36;
 /** Grapheme clusters, so a combining mark or an emoji ZWJ sequence stays whole. */
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
-/** Zero columns: combining marks, joiners, and variation selectors. */
-const ZERO_WIDTH = /^[\p{Mn}\p{Me}\u200B-\u200F\u2060-\u2064\uFE00-\uFE0F]+$/u;
-
-/** Two columns: East Asian Wide and Fullwidth forms, and emoji. */
+/**
+ * Two columns: East Asian Wide and Fullwidth forms, and emoji.
+ *
+ * Everything else counts one column. The segmenter has already merged
+ * combining marks and variation selectors into their base cluster, so the only
+ * thing this can misjudge is a cluster that renders zero columns on its own,
+ * and counting that as one truncates a row a column early rather than letting
+ * it wrap.
+ */
 const WIDE =
   /[\p{Extended_Pictographic}\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/u;
 
 function clusterWidth(cluster: string): number {
-  if (ZERO_WIDTH.test(cluster)) return 0;
   return WIDE.test(cluster) ? 2 : 1;
 }
 
