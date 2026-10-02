@@ -6,6 +6,7 @@
   "license": "MIT",
   "files": [
     "dist",
+    "src",
     "index.mjs",
     "skills",
     "README.md",
@@ -20,14 +21,16 @@
     "./server": {
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
-    }
+    },
+    "./tui": "./src/tui.tsx"
   },
   "scripts": {
     "build": "vp pack",
     "typecheck": "tsc --noEmit",
     "test": "vp test run",
     "check": "vp check",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "sidebar": "node scripts/sidebar-check.mjs"
   },
   "devDependencies": {
     "@opencode/plugin": "2.0.21",
@@ -36,5 +39,21 @@
     "typescript": "^5.9.3",
     "vite": "catalog:",
     "vite-plus": "1.0.0"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": "2.0.21",
+    "@opentui/solid": ">=0.5.14",
+    "solid-js": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opencode/plugin": {
+      "optional": true
+    },
+    "@opentui/solid": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
   }
 }
