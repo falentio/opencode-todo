@@ -121,9 +121,29 @@ function isDone(status: TodoStatus): boolean {
   return status === "completed" || status === "abandoned";
 }
 
+/**
+ * Truncate to `width` UTF-16 code units, keeping a trailing ellipsis.
+ *
+ * The cut is made on code points, not code units: slicing at an arbitrary
+ * index can land between the two halves of an emoji's surrogate pair and
+ * leave a lone surrogate, which renders as a replacement character. A string
+ * of `width` code units can still exceed `width` display columns for wide
+ * characters, but the host measures the same way, so the two agree.
+ */
 function truncate(value: string, width: number): string {
+  if (value.length <= width) return value;
   if (width <= 1) return value.slice(0, Math.max(0, width));
-  return value.length <= width ? value : `${value.slice(0, width - 1)}…`;
+  const codePoints = Array.from(value);
+  const kept: string[] = [];
+  let used = 0;
+  for (const point of codePoints) {
+    const size = point.length;
+    // Stop before overflowing, leaving room for the ellipsis.
+    if (used + size > width - 1) break;
+    kept.push(point);
+    used += size;
+  }
+  return `${kept.join("")}…`;
 }
 
 /** Build the sidebar view. Row text is truncated to the terminal width by `rowText`. */

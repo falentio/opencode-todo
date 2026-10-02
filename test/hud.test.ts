@@ -171,6 +171,25 @@ describe("buildTodoHud", () => {
       expect(rowText(row).length).toBeLessThanOrEqual(37);
     }
   });
+
+  it("never splits a surrogate pair when truncating", () => {
+    // Slicing at a fixed code-unit index can land inside an emoji and leave a
+    // lone surrogate, which renders as a replacement character.
+    const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    const cases = [
+      task("🎉".repeat(50), "pending"),
+      task("日本語".repeat(50), "pending"),
+      task("🎉".repeat(30), "blocked", "🎉".repeat(30)),
+      task("👨‍👩‍👧‍👦".repeat(20), "pending"),
+    ];
+    for (const item of cases) {
+      const row = buildTodoHud([phase("P", [item])]).rows[2];
+      if (row === undefined) throw new Error("expected a task row");
+      const text = rowText(row);
+      expect(text.length).toBeLessThanOrEqual(37);
+      expect(lone.test(text)).toBe(false);
+    }
+  });
 });
 
 describe("rowText", () => {
