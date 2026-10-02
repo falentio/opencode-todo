@@ -334,26 +334,20 @@ check(
 );
 
 // The strongest assertion available: derive the rows the sidebar SHOULD draw
-// from the phases the tool actually persisted, then require each on screen. A
-// row that overflowed and wrapped would not appear as one line, so this also
-// pins the no-wrap property without a heuristic.
+// from the phases the tool actually persisted, then require each on screen.
 //
-// The host clips a row to its own content width, which is narrower than the
-// slot's 42 columns once padding is taken out, so the painted text is a PREFIX
-// of the row this module builds. Match that prefix anywhere in the line, since
-// the transcript pane shares the row. The prefix includes the status marker,
-// which only the sidebar draws, so transcript prose cannot satisfy it.
+// `rowText` caps a row at 36 display columns, under the host's 37, so the full
+// row must appear on ONE screen line. Requiring it on a single line is what
+// pins the no-wrap property: a row that wrapped would have its tail on the next
+// screen row and would not be found whole. Matching the whole row rather than a
+// prefix also means transcript prose cannot satisfy it, since only the sidebar
+// draws the status marker a row starts with.
 if (!bootOnly) {
   const expected = buildTodoHud(persistedPhases).rows.map((row) => rowText(row, SIDEBAR_WIDTH));
-  const painted = lines.join("\n");
-  const MIN_PREFIX = 12;
-  const missing = expected.filter((row) => {
-    const prefix = row.slice(0, Math.min(row.length, MIN_PREFIX));
-    return !painted.includes(prefix);
-  });
+  const missing = expected.filter((row) => !lines.some((line) => line.includes(row)));
   console.log(`\nexpected sidebar rows (${expected.length}): ${JSON.stringify(expected)}`);
   check(
-    "the sidebar rendered every row the persisted phases imply",
+    "every row the persisted phases imply appears whole on one screen line",
     missing.length === 0,
     `missing: ${JSON.stringify(missing)}`,
   );
