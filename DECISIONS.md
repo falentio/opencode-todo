@@ -93,6 +93,7 @@ Every claim below came from running opencode 2.0.21, not from docs.
 | Is the render reactive?                         | Yes. `data.on("session.tool.success")` fires per mutation and the message list is already fresh inside the handler                                    | one shared `opencode serve`; a snapshot at the event showed the new phase |
 | Does the TUI entry need its own `node_modules`? | No. The host supplies `@opentui/solid` and `solid-js`                                                                                                 | rendered with `node_modules` moved away; declared as optional peers       |
 | Does the host truncate the metadata?            | Not at these sizes; it adds `truncated: false` beside the plugin's keys                                                                               | metadata dumps at 3 phases / 24 tasks                                     |
+| What is the sidebar's usable width?             | 37 columns. A longer row is cut by the host, which loses `rowText`'s ellipsis and can split a word, so rows truncate to 36                                | painted probes at 28-42 columns: 32 fit whole, 34 lost its tail, 36 and up painted exactly 37 |
 
 **Design.** `src/hud.ts` is the host-free view model and `src/tui.tsx` is a thin
 slot adapter, so the view logic is unit tested rather than eyeballed. Rows are a

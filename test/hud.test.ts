@@ -161,6 +161,16 @@ describe("buildTodoHud", () => {
     if (row === undefined) throw new Error("expected a task row");
     expect(rowText(row, 24).length).toBe(24);
   });
+
+  it("keeps the default row within the host's measured sidebar width", () => {
+    // The host cuts a row past 37 columns, which loses the ellipsis, so the
+    // default must stay under it.
+    const long = task("w".repeat(200), "blocked", "b".repeat(200));
+    const hud = buildTodoHud([phase("P".repeat(50), [long])]);
+    for (const row of hud.rows) {
+      expect(rowText(row).length).toBeLessThanOrEqual(37);
+    }
+  });
 });
 
 describe("rowText", () => {

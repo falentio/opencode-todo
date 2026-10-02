@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import type { Plugin } from "@opencode/plugin/tui";
 import { createSignal } from "solid-js";
-import { buildTodoHud, phasesFromMessages, rowText } from "./hud.ts";
+import { buildTodoHud, phasesFromMessages, rowText, SIDEBAR_WIDTH } from "./hud.ts";
 import type { TodoPhase } from "./types.ts";
 
 // `@opencode/plugin/tui` is imported for types only: OpenCode does not resolve
@@ -10,9 +10,6 @@ import type { TodoPhase } from "./types.ts";
 
 /** Backstop interval for a mutation that arrives without a tool event. */
 const POLL_INTERVAL_MS = 2_000;
-
-/** Fallback when the measured width is unavailable, matching the host's sidebar. */
-const DEFAULT_WIDTH = 42;
 
 const plugin: Plugin.Definition = {
   id: "opencode-todo.sidebar",
@@ -64,7 +61,7 @@ const plugin: Plugin.Definition = {
           return (
             <box flexDirection="column">
               {buildTodoHud(view).rows.map((row) => (
-                <text>{rowText(row, DEFAULT_WIDTH)}</text>
+                <text>{rowText(row, SIDEBAR_WIDTH)}</text>
               ))}
             </box>
           );
