@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   pack: {
-    entry: ["src/index.ts"],
+    entry: ["src/index.ts", "src/tui.tsx"],
     format: ["esm"],
     platform: "node",
     target: "node22",
@@ -23,13 +23,16 @@ export default defineConfig({
     clean: true,
     dts: true,
     // The host provides these; bundling them would duplicate the runtime the
-    // plugin is loaded into and break plugin identity checks.
+    // plugin is loaded into and break plugin identity checks. The TUI entry
+    // imports `solid-js`, and the host maps that specifier to its own copy.
     deps: {
       neverBundle: [
         "@opencode/plugin",
         "@opencode/schema",
         "@opencode/client",
         "@opencode/ai",
+        "@opentui/solid",
+        "solid-js",
         "effect",
       ],
     },

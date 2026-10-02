@@ -1,9 +1,24 @@
 {
-  "name": "@kevin/opencode-todo",
+  "name": "@falentio/opencode-todo",
   "version": "0.1.0",
-  "private": true,
   "description": "OpenCode v2 plugin: an OMP-style phased todo tool with reminders, /todo commands, and a todo-discipline skill.",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "sidebar",
+    "task-list",
+    "todo",
+    "todos"
+  ],
+  "homepage": "https://github.com/falentio/opencode-todo#readme",
+  "bugs": {
+    "url": "https://github.com/falentio/opencode-todo/issues"
+  },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/falentio/opencode-todo.git"
+  },
   "files": [
     "dist",
     "src",
@@ -22,15 +37,22 @@
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     },
-    "./tui": "./src/tui.tsx"
+    "./tui": "./dist/tui.mjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org"
   },
   "scripts": {
     "build": "vp pack",
+    "prepublishOnly": "vp pack",
     "typecheck": "tsc --noEmit",
     "test": "vp test run",
     "check": "vp check",
     "smoke": "node scripts/smoke.mjs",
-    "sidebar": "node scripts/sidebar-check.mjs"
+    "sidebar": "node scripts/sidebar-check.mjs",
+    "probe": "node scripts/tui-publish-probe.mjs"
   },
   "devDependencies": {
     "@opencode/plugin": "2.0.21",
@@ -41,19 +63,18 @@
     "vite-plus": "1.0.0"
   },
   "peerDependencies": {
-    "@opencode/plugin": "2.0.21",
     "@opentui/solid": ">=0.5.14",
     "solid-js": ">=1.9.0"
   },
   "peerDependenciesMeta": {
-    "@opencode/plugin": {
-      "optional": true
-    },
     "@opentui/solid": {
       "optional": true
     },
     "solid-js": {
       "optional": true
     }
+  },
+  "engines": {
+    "opencode": "^2.0.0"
   }
 }
